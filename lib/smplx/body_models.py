@@ -300,6 +300,7 @@ class SMPL(nn.Module):
         return_verts=True,
         return_full_pose: bool = False,
         pose2rot: bool = True,
+        scale: Optional[Tensor] = None,
         **kwargs
     ) -> SMPLOutput:
         ''' Forward pass for the SMPL model
@@ -345,6 +346,8 @@ class SMPL(nn.Module):
             transl = self.transl
 
         full_pose = torch.cat([global_orient, body_pose], dim=1)
+
+        scale = scale if scale is not None else torch.ones([global_orient.shape[0], 1], dtype=global_orient.dtype, device = global_orient.device)
 
         batch_size = max(betas.shape[0], global_orient.shape[0], body_pose.shape[0])
 

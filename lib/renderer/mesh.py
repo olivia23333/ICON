@@ -21,26 +21,72 @@ import lib.smplx as smplx
 import trimesh
 import torch
 import torch.nn.functional as F
+import json
+from lib.flame.flame_deca.FLAME import FLAME
 
-model_init_params = dict(
-    gender='male',
-    model_type='smplx',
-    model_path=SMPLX().model_dir,
-    create_global_orient=False,
-    create_body_pose=False,
-    create_betas=False,
-    create_left_hand_pose=False,
-    create_right_hand_pose=False,
-    create_expression=False,
-    create_jaw_pose=False,
-    create_leye_pose=False,
-    create_reye_pose=False,
-    create_transl=False,
-    num_pca_comps=12
-)
+# model_init_params = dict(
+#     gender='male',
+#     model_type='smplx',
+#     model_path=SMPLX().model_dir,
+#     create_global_orient=False,
+#     create_body_pose=False,
+#     create_betas=False,
+#     create_left_hand_pose=False,
+#     create_right_hand_pose=False,
+#     create_expression=False,
+#     create_jaw_pose=False,
+#     create_leye_pose=False,
+#     create_reye_pose=False,
+#     create_transl=False,
+#     num_pca_comps=12
+# )
 
 
-def get_smpl_model(model_type, gender):
+def get_smpl_model(model_type, gender, dataset='Custom', flat_hand_mean=None):
+    if model_type == 'smplx':
+        # print(gender)
+        if dataset == 'Custom':
+            model_init_params = dict(
+                gender=gender,
+                model_type='smplx',
+                model_path=SMPLX().model_dir,
+                # create_global_orient=False,
+                # create_body_pose=False,
+                # create_betas=False,
+                # create_left_hand_pose=False,
+                # create_right_hand_pose=False,
+                # create_expression=False,
+                # create_jaw_pose=False,
+                # create_leye_pose=False,
+                # create_reye_pose=False,
+                # create_transl=False,
+                use_pca=True,
+                num_pca_comps=12,
+                num_betas=10,
+                flat_hand_mean=True,
+            )
+        else:
+            model_init_params = dict(
+                gender=gender,
+                model_type='smplx',
+                model_path=SMPLX().model_dir,
+                use_pca=True,
+                num_pca_comps=12,
+                num_betas=10,
+                # flat_hand_mean=False,
+            )
+    elif model_type == 'smpl':
+        model_init_params = dict(
+            gender=gender,
+            model_type='smpl',
+            model_path=SMPLX().model_dir,
+            create_global_orient=False,
+            create_body_pose=False,
+            create_betas=False,
+            create_transl=False
+        )
+    else:
+        assert False
     return smplx.create(**model_init_params)
 
 
@@ -54,36 +100,175 @@ def sigmoid(x):
     return z
 
 
-def load_fit_body(fitted_path, scale, smpl_type='smplx', smpl_gender='neutral', noise_dict=None):
-
-    param = np.load(fitted_path, allow_pickle=True)
+def load_fit_body(fitted_path, scan_scale, smpl_type='smplx', smpl_gender='neutral', dataset='Custom', noise_dict=None):
+    
+    if fitted_path[-4:] == 'json':
+        with open(fitted_path, 'rb') as f: 
+            param = json.load(f)
+    else:
+        param = np.load(fitted_path, allow_pickle=True)
+   
     for key in param.keys():
-        param[key] = torch.as_tensor(param[key])
-
-    smpl_model = get_smpl_model(smpl_type, smpl_gender)
-    model_forward_params = dict(
-        betas=param['betas'],
-        global_orient=param['global_orient'],
-        body_pose=param['body_pose'],
-        left_hand_pose=param['left_hand_pose'],
-        right_hand_pose=param['right_hand_pose'],
-        jaw_pose=param['jaw_pose'],
-        leye_pose=param['leye_pose'],
-        reye_pose=param['reye_pose'],
-        expression=param['expression'],
-        return_verts=True
-    )
+        param[key] = torch.as_tensor(param[key], dtype=torch.float32)
+    
+    smpl_model = get_smpl_model(smpl_type, smpl_gender, dataset)
+    if smpl_type=='smplx':
+        J_0 = smpl_model(body_pose = param['body_pose'].reshape(1, -1), betas=param['betas'].reshape(1, -1)).joints.contiguous().detach()
+        if dataset == 'Custom':
+            # J_0 = smpl_model(body_pose = param['body_pose'].reshape(1, -1), betas=param['betas'].reshape(1, -1)).joints.contiguous().detach()
+            model_forward_params = dict(
+                betas=param['betas'].reshape(1, -1),
+                transl=-J_0[:,0,:],
+                global_orient=torch.tensor([0,0,0]).reshape(1, -1),
+                body_pose=param['body_pose'].reshape(1, -1),
+                left_hand_pose=param['left_hand_pose'].reshape(1, -1),
+                right_hand_pose=param['right_hand_pose'].reshape(1, -1),
+                jaw_pose=param['jaw_pose'].reshape(1, -1),
+                leye_pose=param['leye_pose'].reshape(1, -1),
+                reye_pose=param['reye_pose'].reshape(1, -1),
+                expression=param['expression'].reshape(1, -1),
+                return_verts=True
+            )
+        elif dataset == 'THuman':
+            return param
+            # model_forward_params = dict(
+            #     betas=param['betas'].reshape(1, -1),
+            #     # transl=-J_0[:,0,:],
+            #     transl=torch.zeros(1, 3),
+            #     global_orient=param['global_orient'].reshape(1, -1),
+            #     body_pose=param['body_pose'].reshape(1, -1),
+            #     left_hand_pose=param['left_hand_pose'].reshape(1, -1),
+            #     right_hand_pose=param['right_hand_pose'].reshape(1, -1),
+            #     jaw_pose=param['jaw_pose'].reshape(1, -1),
+            #     leye_pose=param['leye_pose'].reshape(1, -1),
+            #     reye_pose=param['reye_pose'].reshape(1, -1),
+            #     expression=param['expression'].reshape(1, -1),
+            #     return_verts=True
+            # )
+        else:
+            assert False
+    elif smpl_type=='smpl':
+        model_forward_params = dict(
+            betas=param['betas'],
+            global_orient=param['global_orient'],
+            body_pose=param['body_pose'].reshape(1, -1),
+            return_verts=True
+        )
+        
+    else:
+        assert False
 
     if noise_dict is not None:
         model_forward_params.update(noise_dict)
 
     smpl_out = smpl_model(**model_forward_params)
+    smpl_joints = smpl_out.joints[0]
+    smpl_mesh = trimesh.Trimesh(smpl_out.vertices[0], smpl_model.faces, process=False, maintain_order=True)
 
-    smpl_verts = ((smpl_out.vertices[0] * param['scale'] + param['translation']) * scale).detach()
-    smpl_joints = ((smpl_out.joints[0] * param['scale'] + param['translation']) * scale).detach()
-    smpl_mesh = trimesh.Trimesh(smpl_verts, smpl_model.faces, process=False, maintain_order=True)
+    if smpl_type == 'smplx':
+        return param, smpl_mesh, smpl_joints, -J_0[:,0,:]
+    else:
+        return param, smpl_mesh, smpl_joints
 
-    return smpl_mesh, smpl_joints
+def load_fit_face(fitted_path, noise_dict=None):
+
+    if fitted_path[-4:] == 'json':
+        with open(fitted_path, 'rb') as f: 
+            param = json.load(f)
+    else:
+        param = np.load(fitted_path, allow_pickle=True)
+   
+    for key in param.keys():
+        param[key] = torch.as_tensor(param[key], dtype=torch.float32)
+
+    flame_model = FLAME(flame_model_path='/mnt/sdc/zwt_data/ICON/lib/flame/flame_model/generic_model.pkl',
+                        flame_lmk_embedding_path='/mnt/sdc/zwt_data/ICON/lib/flame/flame_model/landmark_embedding.npy')
+
+    model_forward_params = dict(
+        shape_params=param['betas'][:, :100],
+        expression_params=param['betas'][:, 100:],
+        pose_params=param['pose'].reshape(1, -1)
+    )
+
+
+    if noise_dict is not None:
+        model_forward_params.update(noise_dict)
+
+    flame_out = flame_model(**model_forward_params)
+
+    # smpl_verts = ((smpl_out.vertices[0] * param['scale'] + param['translation']) * scale).detach()
+    # smpl_joints = ((smpl_out.joints[0] * param['scale'] + param['translation']) * scale).detach()
+    # smpl_verts = ((smpl_out.vertices[0] * param['scale'] + param['transl']) * scale).detach()
+    # smpl_joints = ((smpl_out.joints[0] * param['scale'] + param['transl']) * scale).detach()
+    # transl = smpl_out.joints[0][0]
+    # smpl_verts = ((smpl_out.vertices[0] - transl) * scan_scale).detach()
+    # smpl_joints = ((smpl_out.joints[0] - transl) * scan_scale).detach()
+    flame_mesh = trimesh.Trimesh(flame_out.vertices[0], flame_out.faces, process=False, maintain_order=True)
+
+    return param, flame_model, flame_mesh
+
+def get_smpl(fitted_path, scan_scale, transl, smpl_type='smplx', smpl_gender='neutral', dataset='Custom', noise_dict=None):
+    if fitted_path[-4:] == 'json':
+        with open(fitted_path, 'rb') as f: 
+            param = json.load(f)
+    else:
+        param = np.load(fitted_path, allow_pickle=True)
+   
+    for key in param.keys():
+        param[key] = torch.as_tensor(param[key], dtype=torch.float32)
+    
+    smpl_model = get_smpl_model(smpl_type, smpl_gender, dataset)
+
+    if smpl_type=='smplx':
+        J_0 = smpl_model(body_pose = param['body_pose'].reshape(1, -1), betas=param['betas'].reshape(1, -1)).joints.contiguous().detach()
+        if dataset=='Custom':
+            model_forward_params = dict(
+                betas=param['betas'].reshape(1, -1),
+                transl=-J_0[:,0,:]+transl,
+                global_orient=torch.tensor([0,0,0]).reshape(1, -1),
+                body_pose=param['body_pose'].reshape(1, -1),
+                left_hand_pose=param['left_hand_pose'].reshape(1, -1),
+                right_hand_pose=param['right_hand_pose'].reshape(1, -1),
+                jaw_pose=param['jaw_pose'].reshape(1, -1),
+                leye_pose=param['leye_pose'].reshape(1, -1),
+                reye_pose=param['reye_pose'].reshape(1, -1),
+                expression=param['expression'].reshape(1, -1),
+                return_verts=True
+            )
+        else:
+            model_forward_params = dict(
+                betas=param['betas'].reshape(1, -1),
+                transl=torch.tensor(transl),
+                global_orient=param['global_orient'].reshape(1, -1),
+                body_pose=param['body_pose'].reshape(1, -1),
+                left_hand_pose=param['left_hand_pose'].reshape(1, -1),
+                right_hand_pose=param['right_hand_pose'].reshape(1, -1),
+                jaw_pose=param['jaw_pose'].reshape(1, -1),
+                leye_pose=param['leye_pose'].reshape(1, -1),
+                reye_pose=param['reye_pose'].reshape(1, -1),
+                expression=param['expression'].reshape(1, -1),
+                return_verts=True
+            )
+    elif smpl_type=='smpl':
+        scale = scan_scale
+        model_forward_params = dict(
+            betas=param['betas'],
+            global_orient=param['global_orient'],
+            body_pose=param['body_pose'].reshape(1, -1),
+            return_verts=True,
+            scale=scale,
+            transl=torch.tensor(transl)
+        )
+    else:
+        assert False
+    
+    if noise_dict is not None:
+        model_forward_params.update(noise_dict)
+
+    smpl_out = smpl_model(**model_forward_params)
+    smpl_mesh = trimesh.Trimesh(smpl_out.vertices[0], smpl_model.faces, process=False, maintain_order=True)
+    return smpl_mesh
+
 
 
 def save_obj_mesh(mesh_path, verts, faces):

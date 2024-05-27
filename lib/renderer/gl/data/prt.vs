@@ -140,7 +140,8 @@ void main()
     vec3 pos = (NormMat * vec4(a_Position,1.0)).xyz;
 
     mat3 R = mat3(ModelMat) * RotMat;
-    VertexOut.ModelNormal = (R * a_Normal);
+    // VertexOut.ModelNormal = (R * a_Normal);
+    VertexOut.ModelNormal = a_Normal;
     VertexOut.Position = R * pos;
     VertexOut.Texcoord = a_TextureCoord;
     VertexOut.Tangent = (R * a_Tangent);

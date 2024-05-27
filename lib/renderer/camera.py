@@ -18,13 +18,14 @@ import cv2
 import numpy as np
 
 from .glm import ortho
+from . import glm
 
 
 class Camera:
-    def __init__(self, width=1600, height=1200):
+    def __init__(self, width=1024, height=1024, focal=5000, near=0.1, far=40):
         # Focal Length
         # equivalent 50mm
-        focal = np.sqrt(width * width + height * height)
+        # focal = np.sqrt(width * width + height * height)
         self.focal_x = focal
         self.focal_y = focal
         # Principal Point Offset
@@ -41,6 +42,7 @@ class Camera:
 
         # Camera Center
         self.center = np.array([0, 0, 1.6])
+        # self.center = np.array([0, 0, 10])
         self.direction = np.array([0, 0, -1])
         self.right = np.array([1, 0, 0])
         self.up = np.array([0, 1, 0])
@@ -171,55 +173,72 @@ class Camera:
                 -self.height * self.ortho_ratio / 2, self.height * self.ortho_ratio / 2, z_near,
                 z_far
             )
+        # print(2 * np.arctan(0.5 * self.height / self.focal_y) / np.pi * 180)
+        # print(self.height / self.focal_y)
+        # assert False
+        # perspective = glm.perspective(
+        #     2 * np.arctan(0.5 * self.height / self.focal_y),
+        #     (self.width * self.focal_y) / (self.height * self.focal_x),
+        #     z_near, z_far)
 
         return perspective, model_view
 
 
-def KRT_from_P(proj_mat, normalize_K=True):
-    res = cv2.decomposeProjectionMatrix(proj_mat)
-    K, Rot, camera_center_homog = res[0], res[1], res[2]
-    camera_center = camera_center_homog[0:3] / camera_center_homog[3]
-    trans = -Rot.dot(camera_center)
-    if normalize_K:
-        K = K / K[2][2]
-    return K, Rot, trans
+# def KRT_from_P(proj_mat, normalize_K=True):
+#     res = cv2.decomposeProjectionMatrix(proj_mat)
+#     K, Rot, camera_center_homog = res[0], res[1], res[2]
+#     camera_center = camera_center_homog[0:3] / camera_center_homog[3]
+#     trans = -Rot.dot(camera_center)
+#     if normalize_K:
+#         K = K / K[2][2]
+#     return K, Rot, trans
 
 
-def MVP_from_P(proj_mat, width, height, near=0.1, far=10000):
-    '''
-    Convert OpenCV camera calibration matrix to OpenGL projection and model view matrix
-    :param proj_mat: OpenCV camera projeciton matrix
-    :param width: Image width
-    :param height: Image height
-    :param near: Z near value
-    :param far: Z far value
-    :return: OpenGL projection matrix and model view matrix
-    '''
-    res = cv2.decomposeProjectionMatrix(proj_mat)
-    K, Rot, camera_center_homog = res[0], res[1], res[2]
-    camera_center = camera_center_homog[0:3] / camera_center_homog[3]
-    trans = -Rot.dot(camera_center)
-    K = K / K[2][2]
+# def MVP_from_P(proj_mat, width, height, near=0.1, far=10000):
+#     '''
+#     Convert OpenCV camera calibration matrix to OpenGL projection and model view matrix
+#     :param proj_mat: OpenCV camera projeciton matrix
+#     :param width: Image width
+#     :param height: Image height
+#     :param near: Z near value
+#     :param far: Z far value
+#     :return: OpenGL projection matrix and model view matrix
+#     '''
+#     res = cv2.decomposeProjectionMatrix(proj_mat)
+#     K, Rot, camera_center_homog = res[0], res[1], res[2]
+#     camera_center = camera_center_homog[0:3] / camera_center_homog[3]
+#     trans = -Rot.dot(camera_center)
+#     K = K / K[2][2]
 
-    extrinsic = np.eye(4)
-    extrinsic[:3, :3] = Rot
-    extrinsic[:3, 3:4] = trans
-    axis_adj = np.eye(4)
-    axis_adj[2, 2] = -1
-    axis_adj[1, 1] = -1
-    model_view = np.matmul(axis_adj, extrinsic)
+#     extrinsic = np.eye(4)
+#     extrinsic[:3, :3] = Rot
+#     extrinsic[:3, 3:4] = trans
+#     axis_adj = np.eye(4)
+#     axis_adj[2, 2] = -1
+#     axis_adj[1, 1] = -1
+#     model_view = np.matmul(axis_adj, extrinsic)
 
-    zFar = far
-    zNear = near
-    projective = np.zeros([4, 4])
-    projective[:2, :2] = K[:2, :2]
-    projective[:2, 2:3] = -K[:2, 2:3]
-    projective[3, 2] = -1
-    projective[2, 2] = (zNear + zFar)
-    projective[2, 3] = (zNear * zFar)
+#     zFar = far
+#     zNear = near
+#     projective = np.zeros([4, 4])
+#     projective[:2, :2] = K[:2, :2]
+#     projective[:2, 2:3] = -K[:2, 2:3]
+#     projective[3, 2] = -1
+#     projective[2, 2] = (zNear + zFar)
+#     projective[2, 3] = (zNear * zFar)
 
-    ndc = ortho(0, width, 0, height, zNear, zFar)
+#     ndc = ortho(0, width, 0, height, zNear, zFar)
 
-    perspective = np.matmul(ndc, projective)
+#     perspective = np.matmul(ndc, projective)
 
-    return perspective, model_view
+#     return perspective, model_view
+
+def lookat(eye, target, up=(0, 1, 0)):
+    fwd = np.asarray(target, np.float64) - eye
+    fwd /= np.linalg.norm(fwd)
+    right = np.cross(fwd, up)
+    right /= np.linalg.norm(right)
+    down = np.cross(fwd, right)
+    R = np.float64([right, down, fwd])
+    tvec = -np.dot(R, eye)
+    return R, tvec

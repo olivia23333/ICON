@@ -70,7 +70,6 @@ class Evaluator:
 
         for k, v in result_dict.items():
             setattr(self, k, v)
-
         self.verts_pr -= self.recon_size / 2.0
         self.verts_pr /= self.recon_size / 2.0
         self.verts_gt = projection(self.verts_gt, self.calib)

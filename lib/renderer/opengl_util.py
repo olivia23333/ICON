@@ -26,7 +26,6 @@ import numpy as np
 
 
 def render_result(rndr, shader_id, path, mask=False):
-
     cam_render = rndr.get_color(shader_id)
     cam_render = cv2.cvtColor(cam_render, cv2.COLOR_RGBA2BGRA)
 
@@ -177,7 +176,7 @@ def rotateBand2(x, R):
 
 def load_calib(param, render_size=512):
     # pixel unit / world unit
-    ortho_ratio = param['ortho_ratio']
+    # ortho_ratio = param['ortho_ratio']
     # world unit / model unit
     scale = param['scale']
     # camera center world coordinate
@@ -189,19 +188,19 @@ def load_calib(param, render_size=512):
     extrinsic = np.concatenate([R, translate], axis=1)
     extrinsic = np.concatenate([extrinsic, np.array([0, 0, 0, 1]).reshape(1, 4)], 0)
     # Match camera space to image pixel space
-    scale_intrinsic = np.identity(4)
-    scale_intrinsic[0, 0] = scale / ortho_ratio
-    scale_intrinsic[1, 1] = -scale / ortho_ratio
-    scale_intrinsic[2, 2] = scale / ortho_ratio
+    # scale_intrinsic = np.identity(4)
+    # scale_intrinsic[0, 0] = scale / ortho_ratio
+    # scale_intrinsic[1, 1] = -scale / ortho_ratio
+    # scale_intrinsic[2, 2] = scale / ortho_ratio
     # Match image pixel space to image uv space
-    uv_intrinsic = np.identity(4)
-    uv_intrinsic[0, 0] = 1.0 / float(render_size // 2)
-    uv_intrinsic[1, 1] = 1.0 / float(render_size // 2)
-    uv_intrinsic[2, 2] = 1.0 / float(render_size // 2)
+    # uv_intrinsic = np.identity(4)
+    # uv_intrinsic[0, 0] = 1.0 / float(render_size // 2)
+    # uv_intrinsic[1, 1] = 1.0 / float(render_size // 2)
+    # uv_intrinsic[2, 2] = 1.0 / float(render_size // 2)
 
-    intrinsic = np.matmul(uv_intrinsic, scale_intrinsic)
-    calib = np.concatenate([extrinsic, intrinsic], axis=0)
-    return calib
+    # intrinsic = np.matmul(uv_intrinsic, scale_intrinsic)
+    # calib = np.concatenate([extrinsic, intrinsic], axis=0)
+    return extrinsic
 
 
 def render_prt_ortho(

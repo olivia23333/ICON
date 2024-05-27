@@ -49,6 +49,11 @@ class ColorRender(CamRender):
         self.vertex_dim = {}
         self.n_vertices = {}
 
+        self.shcoeff_unif = glGetUniformLocation(self.program, 'SHCoeffs')
+        self.shcoeffs = np.zeros((9, 3))
+        self.shcoeffs[0, :] = 1.0
+        # self.shcoeffs[1:, :] = 1.0 * np.random.rand(8, 3)
+
         self.rot_mat_unif = glGetUniformLocation(self.program, 'RotMat')
         self.rot_matrix = np.eye(3)
 
@@ -86,6 +91,9 @@ class ColorRender(CamRender):
         glBufferData(GL_ARRAY_BUFFER, self.norm_data[mat_name], GL_STATIC_DRAW)
 
         glBindBuffer(GL_ARRAY_BUFFER, 0)
+    
+    def set_sh(self, sh):
+        self.shcoeffs = sh
 
     def cleanup(self):
 
@@ -120,6 +128,7 @@ class ColorRender(CamRender):
         glUniformMatrix4fv(self.model_mat_unif, 1, GL_FALSE, self.model_view_matrix.transpose())
         glUniformMatrix4fv(self.persp_mat_unif, 1, GL_FALSE, self.projection_matrix.transpose())
         glUniformMatrix3fv(self.rot_mat_unif, 1, GL_FALSE, self.rot_matrix.transpose())
+        glUniform3fv(self.shcoeff_unif, 9, self.shcoeffs)
 
         for mat in self.vert_buffer:
 

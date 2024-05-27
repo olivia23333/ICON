@@ -77,6 +77,7 @@ class PRTRender(CamRender):
         self.shcoeff_unif = glGetUniformLocation(self.program, 'SHCoeffs')
         self.shcoeffs = np.zeros((9, 3))
         self.shcoeffs[0, :] = 1.0
+        # self.shcoeffs[1:,:] = 0.0
         #self.shcoeffs[1:,:] = np.random.rand(8,3)
 
         self.hasAlbedoUnif = glGetUniformLocation(self.program, 'hasAlbedoMap')
@@ -286,7 +287,7 @@ class PRTRender(CamRender):
             glDeleteBuffers(1, [self.prt2_buffer[key]])
             glDeleteBuffers(1, [self.prt3_buffer[key]])
 
-            glDeleteBuffers(1, [])
+            # glDeleteBuffers(1, [])
 
             for smplr in self.render_texture_mat[key]:
                 glDeleteTextures([self.render_texture_mat[key][smplr]])
@@ -324,9 +325,9 @@ class PRTRender(CamRender):
         self.n_vertices = {}
         self.label_dim = {}
 
-    def randomize_sh(self):
-        self.shcoeffs[0, :] = 0.8
-        self.shcoeffs[1:, :] = 1.0 * np.random.rand(8, 3)
+    # def randomize_sh(self):
+    #     self.shcoeffs[0, :] = 0.8
+    #     self.shcoeffs[1:, :] = 1.0 * np.random.rand(8, 3)
 
     def set_sh(self, sh):
         self.shcoeffs = sh
@@ -350,6 +351,7 @@ class PRTRender(CamRender):
         glUniformMatrix4fv(self.model_mat_unif, 1, GL_FALSE, self.model_view_matrix.transpose())
         glUniformMatrix4fv(self.persp_mat_unif, 1, GL_FALSE, self.projection_matrix.transpose())
 
+        
         if 'AlbedoMap' in self.render_texture_mat['all']:
             glUniform1ui(self.hasAlbedoUnif, GLuint(1))
         else:

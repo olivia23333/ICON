@@ -135,7 +135,8 @@ void main()
     }
 
     shading = gammaCorrection(shading, 2.2);
-    FragColor = clamp(albedo * shading, 0.0, 1.0);
+    // FragColor = clamp(albedo * shading, 0.0, 1.0);
+    FragColor = clamp(albedo, 0.0, 1.0);
     FragPosition = vec4(VertexIn.Position,1.0);
     FragNormal = vec4(0.5*(nM+vec3(1.0)),1.0);
 }

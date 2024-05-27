@@ -246,6 +246,7 @@ class Render:
         glEnable(GL_DEPTH_TEST)
 
         glClearColor(0.0, 0.0, 0.0, 0.0)
+        # glClearColor(1.0, 1.0, 1.0, 0.0)
         if self.use_inverse_depth:
             glDepthFunc(GL_GREATER)
             glClearDepth(0.0)
