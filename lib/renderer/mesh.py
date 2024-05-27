@@ -22,7 +22,6 @@ import trimesh
 import torch
 import torch.nn.functional as F
 import json
-from lib.flame.flame_deca.FLAME import FLAME
 
 # model_init_params = dict(
 #     gender='male',

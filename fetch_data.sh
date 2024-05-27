@@ -30,16 +30,16 @@ password=$(urle $password)
 # cd ../../..
 
 # ICON
-# echo -e "\nDownloading ICON..."
-# wget --post-data "username=$username&password=$password" 'https://download.is.tue.mpg.de/download.php?domain=icon&sfile=icon_data.zip&resume=1' -O './data/icon_data.zip' --no-check-certificate --continue
-# cd data && unzip icon_data.zip
-# mv smpl_data smpl_related/
-# rm -f icon_data.zip
-# cd ..
+echo -e "\nDownloading ICON..."
+wget --post-data "username=$username&password=$password" 'https://download.is.tue.mpg.de/download.php?domain=icon&sfile=icon_data.zip&resume=1' -O './data/icon_data.zip' --no-check-certificate --continue
+cd data && unzip icon_data.zip
+mv smpl_data smpl_related/
+rm -f icon_data.zip
+cd ..
 
 # SMPLX
 echo -e "\nDownloading SMPL-X..."
-wget --post-data "username=$1&password=$2" 'https://download.is.tue.mpg.de/download.php?domain=smplx&sfile=models_smplx_v1_1.zip&resume=1' -O './data/smpl_related/models/models_smplx_v1_1.zip' --no-check-certificate --continue
+wget --post-data "username=$username&password=$password" 'https://download.is.tue.mpg.de/download.php?domain=smplx&sfile=models_smplx_v1_1.zip&resume=1' -O './data/smpl_related/models/models_smplx_v1_1.zip' --no-check-certificate --continue
 unzip data/smpl_related/models/models_smplx_v1_1.zip -d data/smpl_related
 rm -f data/smpl_related/models/models_smplx_v1_1.zip
 
