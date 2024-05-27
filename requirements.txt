@@ -1,3 +1,6 @@
+-f https://download.pytorch.org/whl/cu113/torch_stable.html
+torch==1.12.0+cu113
+torchvision==0.13.0+cu113
 matplotlib==3.5.0
 Pillow>=9.0.1
 PyOpenGL
@@ -31,9 +34,5 @@ protobuf==3.20.0
 open3d
 dataclasses>=0.6
 numpy==1.22.4
-torch==1.13.0 
-torchvision
-git+https://github.com/facebookresearch/pytorch3d.git@v0.7.1
-git+https://github.com/YuliangXiu/neural_voxelization_layer.git
-git+https://github.com/NVIDIAGameWorks/kaolin.git
-git+https://github.com/YuliangXiu/rembg.git
+https://download.is.tue.mpg.de/icon/colab/kaolin-0.11.0-cp38-cp38-linux_x86_64.whl
+https://download.is.tue.mpg.de/icon/colab/voxelize_cuda-0.0.0-cp38-cp38-linux_x86_64.whl
