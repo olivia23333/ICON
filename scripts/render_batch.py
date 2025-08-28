@@ -11,6 +11,8 @@ import torch
 import json
 from PIL import Image
 
+# torch.set_default_device('cuda:3')
+
 # multi-thread
 # from functools import partial
 # from multiprocessing import Pool, Queue
@@ -20,12 +22,13 @@ from PIL import Image
 # "Numba: Attempted to fork from a non-main thread, the TBB library may be in an invalid state in the child process.""
 # import numba
 # numba.config.THREADING_LAYER = 'workqueue'
-
 sys.path.append(os.path.join(os.getcwd()))
+
 
 def generate_cameras(dist=10, view_num=60):
     cams = []
     v_view = [math.pi/2 - 0.4, math.pi/2, math.pi/2 + 0.4]
+    # v_view = [math.pi/2]
     target = [0, 0, 0]
     up = [0, 1, 0]
     angles_vis = []
@@ -100,17 +103,27 @@ def render_subject(subject, path, dataset, save_folder, rotation, size, render_t
     up_axis = 1
     smpl_type = "smplx"
 
+    smpl_model = get_smpl_model(smpl_type, 'neutral', dataset)
+
     if dataset == '2K2K':
         mesh_file = os.path.join(path, subject, subject + '.ply')
     elif dataset == 'THuman':
         mesh_file = os.path.join(path, subject, subject + '.obj')
         tex_file = os.path.join(path, subject, 'material0.jpeg')
-        # fit_file = os.path.join(os.path.split(path)[0], 'THuman2.0_smpl', subject+'_smpl.pkl')
-        fit_file = os.path.join(os.path.split(path)[0], 'THUman20_Smpl-X', subject, 'smplx_param.pkl')
+        fit_file = os.path.join(os.path.split(path)[0], 'THUman20_Smpl-X', subject, 'smplx_param_refine.pkl')
+        print(fit_file)
+    elif dataset == 'THuman21':
+        mesh_file = os.path.join(path, subject, subject + '.obj')
+        tex_file = os.path.join(path, subject, 'material0.jpeg')
+        fit_file = os.path.join(os.path.split(path)[0], 'smplx', subject, 'smplx_param.pkl')
     elif dataset == 'Custom':
         mesh_file = os.path.join(path, subject, 'mesh-f' + subject[-5:] + '.obj')
         tex_file = os.path.join(path, subject, 'mesh-f' + subject[-5:] + '.png')
-        fit_file = os.path.join(os.path.split(path)[0], 'smplx', subject, 'mesh-f' + subject[-5:] + '.json')
+        fit_file = os.path.join(os.path.split(path)[0], 'smplx', subject, 'mesh-f' + subject[-5:] + '_refine.json')
+    elif dataset == '4DDress':
+        mesh_file = os.path.join(path, subject, subject + '.obj')
+        tex_file = os.path.join(path, subject, subject + '.png')
+        fit_file = os.path.join(path, subject, subject + '_smplx.json')
     elif dataset == 'faceverse':
         mesh_file = os.path.join(path, subject, subject + '.obj')
         tex_file = os.path.join(path, subject, subject + '.jpg')
@@ -118,7 +131,6 @@ def render_subject(subject, path, dataset, save_folder, rotation, size, render_t
     elif dataset == 'sizer':
         mesh_file = os.path.join(path, subject, 'model_0.8.obj')
         tex_file = os.path.join(path, subject, 'model_0.8.jpg')
-        # fit_file = os.path.join()
     elif dataset == 'SynBody':
         mesh_file = os.path.join(path, subject, 'SMPL-XL-Tpose.obj')
         tex_file = os.path.join(path, subject, 'SMPL-XL-Tpose.mtl')
@@ -173,44 +185,62 @@ def render_subject(subject, path, dataset, save_folder, rotation, size, render_t
     if mesh_file[-3:] == 'ply' or mesh_file[-3:]=='npz' or dataset == 'SynBody':
         pass
     elif dataset == 'Custom':
+        # fit_param, rescale_fitted_body, joints, transl = load_fit_body(
+        #     fit_file, scan_scale, smpl_type=smpl_type, smpl_gender='male', dataset='Custom'
+        # )
         fit_param, rescale_fitted_body, joints, transl = load_fit_body(
-            fit_file, scan_scale, smpl_type=smpl_type, smpl_gender='male', dataset='Custom'
+            fit_file, scan_scale, smpl_type=smpl_type, smpl_gender='neutral', dataset='Custom'
+        )
+    elif dataset == '4DDress':
+        with open(fit_file, 'r') as file:
+            gender = json.load(file)['gender']
+        fit_param, rescale_fitted_body, joints, transl = load_fit_body(
+            fit_file, scan_scale, smpl_type=smpl_type, smpl_gender=gender, dataset='Custom'
         )
     elif dataset == 'faceverse':
         fit_param, flame_model, flame_mesh = load_fit_face(fit_file)
-    else:
+    elif dataset == 'THuman':
         if smpl_type == 'smplx':
+            # fit_param = load_fit_body(
+            #     fit_file, scan_scale, smpl_type=smpl_type, smpl_gender='male', dataset='THuman'
+            # )
             fit_param = load_fit_body(
-                fit_file, scan_scale, smpl_type=smpl_type, smpl_gender='male', dataset='THuman'
+                fit_file, scan_scale, smpl_type=smpl_type, smpl_gender='neutral', dataset='THuman'
             )
         else:
             fit_param, rescale_fitted_body, joints = load_fit_body(
                 fit_file, scan_scale, smpl_type=smpl_type, smpl_gender='neutral', dataset='THuman'
             )
+    elif dataset == 'THuman21':
+        fit_param = load_fit_body(
+            fit_file, scan_scale, smpl_type=smpl_type, smpl_gender='neutral', dataset='THuman21'
+        )
+    else:
+        assert False
 
-    if dataset == 'faceverse':
-        # flip and translate to origin
-        vertices[:,1] = -vertices[:,1]
-        vertices[:,2] = -vertices[:,2]
-        t = (vertices[:,2].max() + vertices[:,2].min()) / 2
-        vertices[:,2] = vertices[:,2] - t
-        # add scale and transl to align with flame model
-        flame_scale = np.array(fit_param['scale'])
-        flame_transl = np.array(fit_param['transl'])
-        flame_t = np.zeros_like(flame_transl)    
-        flame_t[:,2] = flame_model.t
-        scan_scale = flame_model.factor / flame_scale
-        vertices = scan_scale * (vertices - flame_transl) + flame_t
-    elif dataset == 'SynBody':
+    if dataset == 'SynBody':
         smpl_t = np.array([0, 0, 0])[None]
         smpl_t[:, 1] = 0.25    
         vertices -= np.array([0, 1.15, 0])[None]
         vertices = vertices / 1. + smpl_t
+    elif dataset == 'THuman21':
+        smpl_t = np.zeros_like(fit_param['transl'])
+        smpl_t[:, 1] = 0.35
+
+        smpl_out = smpl_model(betas=fit_param['betas'], body_pose=fit_param['body_pose'], global_orient=fit_param['global_orient'], return_joint_transformation=True)
+        # rotmat = cv2.Rodrigues(np.array(fit_param['global_orient']))[0]
+        tfmat = torch.inverse(smpl_out.joint_transformation.clone()[0].float()).detach().numpy()
+        rotmat = tfmat[0, :3, :3]
+        trans_ = tfmat[0, :3, 3:].transpose(1, 0)
+        vertices = vertices / np.array(fit_param['scale'][0])
+        vertices -= np.array(fit_param['transl'])
+        vertices = vertices @ (rotmat.T)
+        normals = normals @ (rotmat.T)
+        vertices += trans_
+        vertices += smpl_t
     elif dataset == 'THuman':
-        # smpl_t = np.zeros_like(fit_param['transl'])
         smpl_t = np.zeros_like(fit_param['translation'])[None]
         smpl_t[:, 1] = 0.35
-        # vertices -= np.array(fit_param['transl'])
         vertices -= np.array(fit_param['translation'])
         vertices = vertices / np.array(fit_param['scale'][0]) + smpl_t
     elif dataset == 'Custom':
@@ -231,7 +261,6 @@ def render_subject(subject, path, dataset, save_folder, rotation, size, render_t
     if mesh_file[-3:] == 'ply' or dataset == 'SynBody':
         texture = textures / 255.
         color_rndr.set_mesh(vertices, faces, texture[:,:3], normals)
-        # color_rndr.set_norm_mat(scan_scale, vmed)
         color_rndr.set_norm_mat(1.0, 0.0)
     elif mesh_file[-3:] == 'npz':
         color_rndr.set_mesh(vertices, faces, colors, normals)
@@ -259,22 +288,23 @@ def render_subject(subject, path, dataset, save_folder, rotation, size, render_t
         
         if args.debug:
             model_mesh = trimesh.Trimesh(vertices, faces, process=False, maintain_order=True)
-            if dataset == 'faceverse':
-                rndr_smpl.set_mesh(flame_mesh.vertices, flame_mesh.faces, flame_mesh.vertex_normals, \
-                    flame_mesh.vertex_normals)
-                rndr_smpl.set_norm_mat(1.0, 0.0)
-                # flame_mesh.export(os.path.join(save_folder, 'render', 'flame_mesh.obj'))
+            if dataset == 'THuman':
+                smpl_mesh = get_smpl(fit_file, 1.0, smpl_t, smpl_type=smpl_type, smpl_gender='neutral', dataset='THuman')
+                # smpl_mesh = get_smpl(fit_file, 1.0, smpl_t, smpl_type=smpl_type, smpl_gender='male', dataset='THuman')
+            elif dataset == 'THuman21':
+                smpl_mesh = get_smpl(fit_file, 1.0, smpl_t, smpl_type=smpl_type, smpl_gender='neutral', dataset='THuman21')
+            elif dataset == 'Custom':
+                # smpl_mesh = get_smpl(fit_file, 1.0, smpl_t, smpl_type=smpl_type, smpl_gender='male')
+                smpl_mesh = get_smpl(fit_file, 1.0, smpl_t, smpl_type=smpl_type, smpl_gender='neutral')
+            elif dataset == '4DDress':
+                with open(fit_file, 'r') as file:
+                    gender = json.load(file)['gender']
+                smpl_mesh = get_smpl(fit_file, 1.0, smpl_t, smpl_type=smpl_type, smpl_gender=gender)
             else:
-                if dataset == 'THuman':
-                    # smpl_mesh = get_smpl(fit_file, 1.0, smpl_t, smpl_type=smpl_type, smpl_gender='neutral', dataset='THuman')
-                    smpl_mesh = get_smpl(fit_file, 1.0, smpl_t, smpl_type=smpl_type, smpl_gender='male', dataset='THuman')
-                elif dataset == 'Custom':
-                    smpl_mesh = get_smpl(fit_file, 1.0, smpl_t, smpl_type=smpl_type, smpl_gender='male')
-                else:
-                    assert False
-                rndr_smpl.set_mesh(smpl_mesh.vertices, smpl_mesh.faces, smpl_mesh.vertex_normals*0.5+0.5, \
+                assert False
+            rndr_smpl.set_mesh(smpl_mesh.vertices, smpl_mesh.faces, smpl_mesh.vertex_normals*0.5+0.5, \
                         smpl_mesh.vertex_normals)
-                rndr_smpl.set_norm_mat(1.0, 0.0)
+            rndr_smpl.set_norm_mat(1.0, 0.0)
     else:
         assert False
 
@@ -282,8 +312,6 @@ def render_subject(subject, path, dataset, save_folder, rotation, size, render_t
     
     for i, (cam_param, angle) in enumerate(zip(cam_params, angles)):
 
-        # cam.near = -100
-        # cam.far = 100
         cam.far = 40
         cam.near = 0.1
       
@@ -309,7 +337,7 @@ def render_subject(subject, path, dataset, save_folder, rotation, size, render_t
 
         if dataset == 'faceverse':
             dic = {'scale': 1.0, 'center': [0, 0, 0], 'cam_param': c2w.tolist()}
-        elif dataset == 'Custom':
+        elif dataset == 'Custom' or dataset == '4DDress':
             dic = {'scale': 1.0, 'center': (transl[0]+smpl_t[0]).tolist(), 'cam_param': c2w.tolist()}
         else:
             dic = {'scale': 1.0, 'center': smpl_t[0].tolist(), 'cam_param': c2w.tolist()}
@@ -352,11 +380,10 @@ def render_subject(subject, path, dataset, save_folder, rotation, size, render_t
         # ==================================================================
 
         export_calib_file = os.path.join(save_folder, 'calib', f'{angle:03d}_{(i//rotation):03d}.json')
+        # export_calib_file = os.path.join(save_folder, 'calib', f'{i:03d}.json')
         os.makedirs(os.path.dirname(export_calib_file), exist_ok=True)
         with open(export_calib_file, 'w') as f:
             json.dump(dic, f)
-        
-        # np.savetxt(export_calib_file, calib_info)
 
         # ==================================================================
 
@@ -369,12 +396,15 @@ def render_subject(subject, path, dataset, save_folder, rotation, size, render_t
         elif mesh_file[-3:] == 'obj':
             rndr.display()
             opengl_util.render_result(
-                rndr, 0, os.path.join(save_folder, 'render', f'{angle:03d}_{(i//rotation):03d}.png')
+                rndr, 0, os.path.join(save_folder, 'image', f'{angle:03d}_{(i//rotation):03d}.png')
+            )
+            opengl_util.render_result(
+                rndr, 1, os.path.join(save_folder, 'normal', f'{angle:03d}_{(i//rotation):03d}.png')
             )
             if args.debug:
                 rndr_smpl.display()
                 opengl_util.render_result(
-                    rndr_smpl, 0, os.path.join(save_folder, 'render', f'{angle:03d}_{(i//rotation):03d}_smpl.png')
+                    rndr_smpl, 1, os.path.join(save_folder, 'render', f'{angle:03d}_{(i//rotation):03d}_smpl.png')
                 )
                 model_mesh.export(os.path.join(save_folder, 'render', 'mesh.obj'))
                 if dataset == 'faceverse':
@@ -416,11 +446,11 @@ if __name__ == "__main__":
         os.environ["PYOPENGL_PLATFORM"] = "egl"
     else:
         os.environ["PYOPENGL_PLATFORM"] = ""
-    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    # os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
     # shoud be put after PYOPENGL_PLATFORM
     import lib.renderer.opengl_util as opengl_util
-    from lib.renderer.mesh import load_fit_body, load_scan, compute_tangent, get_smpl, load_fit_face
+    from lib.renderer.mesh import load_fit_body, load_scan, compute_tangent, get_smpl, load_fit_face, get_smpl_model
     import lib.renderer.prt_util as prt_util
     from lib.renderer.gl.init_gl import initialize_GL_context
     from lib.renderer.gl.prt_render import PRTRender
@@ -428,20 +458,22 @@ if __name__ == "__main__":
     from lib.renderer.camera import Camera
 
     print(
-        f"Start Rendering {args.dataset} with {args.num_views * 3} views, {args.size}x{args.size} size."
+        f"Start Rendering {args.dataset} with {args.num_views} views, {args.size}x{args.size} size."
     )
 
     subjects = os.listdir(args.path)
 
     if args.debug:
         subjects.sort()
-        subjects = subjects[:3]
+        # subjects = subjects[527:528]
+        # subjects = subjects[:1]
         print(subjects)
         render_types = ["normal", "depth"]
         # render_types = ["light", "normal", "depth"]
     else:
-        # random.shuffle(subjects)
         subjects.sort()
+        if args.dataset == 'THuman21':
+            subjects = subjects[526:]
         render_types = ["normal", "depth"]
 
     print(f"Rendering types: {render_types}")
@@ -458,14 +490,16 @@ if __name__ == "__main__":
         color_rndr = None
         if args.debug:
             rndr_smpl = ColorRender(width=args.size, height=args.size, egl=args.headless)
+            print('obtain rndr_smpl')
 
     for subject in tqdm(subjects):
         if not args.debug:
-            current_out_dir = f"{args.path}/{subject}/{args.num_views}views_3"
+            current_out_dir = f"{args.path}/{subject}/{args.num_views}views_3_wbg"
+            # current_out_dir = f"{args.path}/{subject}/{args.num_views}views_wbg_ortho"
         else:
             current_out_dir = f"./debug/{subject}"
         os.makedirs(current_out_dir, exist_ok=True)
-        print(f"Output dir: {current_out_dir}")
+        
         render_subject(
                     subject,
                     path=args.path,
@@ -477,6 +511,6 @@ if __name__ == "__main__":
                     render_types=render_types,
                     rndr=rndr,
                     color_rndr=color_rndr,
-                    ortho=True)
+                    ortho=False)
 
     print('Finish Rendering.')

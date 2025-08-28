@@ -43,7 +43,6 @@ import json
 
 def get_smpl_model(model_type, gender, dataset='Custom', flat_hand_mean=None):
     if model_type == 'smplx':
-        # print(gender)
         if dataset == 'Custom':
             model_init_params = dict(
                 gender=gender,
@@ -62,17 +61,37 @@ def get_smpl_model(model_type, gender, dataset='Custom', flat_hand_mean=None):
                 use_pca=True,
                 num_pca_comps=12,
                 num_betas=10,
-                flat_hand_mean=True,
+                # flat_hand_mean=True,
+                flat_hand_mean=False,
+            )
+        elif dataset == 'THuman':
+            model_init_params = dict(
+                gender=gender,
+                model_type='smplx',
+                model_path=SMPLX().model_dir,
+                use_pca=True,
+                # use_pca=False,
+                num_pca_comps=12,
+                num_betas=10,
+                # flat_hand_mean=False,
+            )
+        elif dataset == 'THuman21':
+            model_init_params = dict(
+                gender=gender,
+                model_type='smplx',
+                model_path=SMPLX().model_dir,
+                use_pca=False,
+                num_betas=10,
+                flat_hand_mean=False,
             )
         else:
             model_init_params = dict(
                 gender=gender,
                 model_type='smplx',
                 model_path=SMPLX().model_dir,
-                use_pca=True,
-                num_pca_comps=12,
+                use_pca=False,
                 num_betas=10,
-                # flat_hand_mean=False,
+                flat_hand_mean=False,
             )
     elif model_type == 'smpl':
         model_init_params = dict(
@@ -104,6 +123,8 @@ def load_fit_body(fitted_path, scan_scale, smpl_type='smplx', smpl_gender='neutr
     if fitted_path[-4:] == 'json':
         with open(fitted_path, 'rb') as f: 
             param = json.load(f)
+        if 'gender' in param.keys():
+            del param['gender']
     else:
         param = np.load(fitted_path, allow_pickle=True)
    
@@ -128,7 +149,7 @@ def load_fit_body(fitted_path, scan_scale, smpl_type='smplx', smpl_gender='neutr
                 expression=param['expression'].reshape(1, -1),
                 return_verts=True
             )
-        elif dataset == 'THuman':
+        elif dataset == 'THuman' or dataset == 'THuman21':
             return param
             # model_forward_params = dict(
             #     betas=param['betas'].reshape(1, -1),
@@ -210,6 +231,8 @@ def get_smpl(fitted_path, scan_scale, transl, smpl_type='smplx', smpl_gender='ne
     if fitted_path[-4:] == 'json':
         with open(fitted_path, 'rb') as f: 
             param = json.load(f)
+        if 'gender' in param.keys():
+            del param['gender']
     else:
         param = np.load(fitted_path, allow_pickle=True)
    
@@ -234,7 +257,7 @@ def get_smpl(fitted_path, scan_scale, transl, smpl_type='smplx', smpl_gender='ne
                 expression=param['expression'].reshape(1, -1),
                 return_verts=True
             )
-        else:
+        elif dataset=='THuman':
             model_forward_params = dict(
                 betas=param['betas'].reshape(1, -1),
                 transl=torch.tensor(transl),
@@ -248,6 +271,22 @@ def get_smpl(fitted_path, scan_scale, transl, smpl_type='smplx', smpl_gender='ne
                 expression=param['expression'].reshape(1, -1),
                 return_verts=True
             )
+        elif dataset=='THuman21':
+            model_forward_params = dict(
+                betas=param['betas'].reshape(1, -1),
+                transl=torch.tensor(transl),
+                global_orient=torch.zeros_like(param['global_orient'].reshape(1, -1)),
+                body_pose=param['body_pose'].reshape(1, -1),
+                left_hand_pose=param['left_hand_pose'].reshape(1, -1),
+                right_hand_pose=param['right_hand_pose'].reshape(1, -1),
+                jaw_pose=param['jaw_pose'].reshape(1, -1),
+                leye_pose=param['leye_pose'].reshape(1, -1),
+                reye_pose=param['reye_pose'].reshape(1, -1),
+                expression=param['expression'].reshape(1, -1),
+                return_verts=True
+            )
+        else:
+            assert False
     elif smpl_type=='smpl':
         scale = scan_scale
         model_forward_params = dict(
@@ -265,6 +304,9 @@ def get_smpl(fitted_path, scan_scale, transl, smpl_type='smplx', smpl_gender='ne
         model_forward_params.update(noise_dict)
 
     smpl_out = smpl_model(**model_forward_params)
+    # print(smpl_out.vertices[0].min(0))
+    # print(smpl_out.vertices[0].max(0))
+    # assert False
     smpl_mesh = trimesh.Trimesh(smpl_out.vertices[0], smpl_model.faces, process=False, maintain_order=True)
     return smpl_mesh
 
